@@ -1,4 +1,4 @@
-<img width="771" height="122" alt="phase3 1" src="https://github.com/user-attachments/assets/637ac114-380c-4853-8c27-24f59e14c913" /># Binary Bomb Lab Write-Up
+# Binary Bomb Lab Write-Up
 
 This write-up explores the **Binary Bomb Lab**, originally developed for Carnegie Mellon University’s architecture course by **Bryant & O'Hallaron**, and later adapted for **Intel x86-64** by **Xeno Kovah** 
 
@@ -192,12 +192,71 @@ and
 
 ## Phase 5
 
-Two inputs are required.
+By checking sscanf we geyt to know that **Two inputs are required.**
+First Input -> rbp+64h
+Second Input -> rbp+84h
 
 Key observations:
 - First input is masked using `AND 0xF`
-- A loop executes exactly **15 iterations**
-- A lookup table drives the value transformation
+```
+mov     eax,dword ptr [rbp+64h]
+and     eax,0Fh
+```
+`and     eax,0Fh` from this we get to know that our 1st input cannot exceed decimal 15 (0x0fh)
+
+`0x0` is placed into `rbp+4` and `rbp+24`
+
+```
+cmp     dword ptr [rbp+64h],0Fh
+je      bomb!phase_5+0xc4 (00007ff7`fb952524)
+```
+if we take this jump , it leads to another jump which leads to explode bomb by comparing  two immediates 0x0 and 0x0F
+`NOTE : [rbp+64] should not be 0fh (15 decimal)`
+So skip the 1st `je`
+
+This takes us to a series of instructions that puts us in a loop and increments rbp+4 by 1 so that it can  be equal to 0x0F by incremeting, and we can jump to 00007ff7fb952535. However, there is some pointer arithmetic that modifies the value of rbp+64h(out 1st input):
+
+```
+movsxd  rax,dword ptr [rbp+64h]
+lea     rcx,[bomb!n1+0x20 (00007ff7`fb95f1d0)]
+mov     eax,dword ptr [rcx+rax*4]
+mov     dword ptr [rbp+64h],eax
+```
+
+if our `[rbp+64]` value is modified to `0xf` before the `rbp+4` valure reaches `0xf` then the loop breaks and pushes to `explode bomb`.
+
+`[rcx+rax*4]`
+with command `dd 00007ff7fb95f1d0+X*4 L1` we can view the memory of those address 
+`NOTE: RAX = OUR 1ST INPUT (rbp+64h) `
+<img width="380" height="488" alt="image" src="https://github.com/user-attachments/assets/02fb2bde-6a80-4f4a-b877-fbe7804a6030" />
+
+BY THIS WE CAN CHECK THAT , if `RAX` is more than 5 ,it leads to `0xf` before the `rbp+4` reaches `0xf`  
+
+so if our 1st input is 5 , `RAX` takes 15 rotaion to get memory as 15 `0xf`, where `rbp+4` increments by 1 and it needs 15 rotation for `0xf` 
+
+``
+Input of 5 = C --> 3 --> 7 --> B --> D --> 9 --> 4 --> 8 --> 0 --> A --> 1 --> 2 --> E --> 6 --> F
+``
+
+we can see some more arithmetic performed on the immediate `0x0` in `rbp+24h` within the loop:
+
+```
+mov     ecx,dword ptr [rbp+24h]
+add     ecx,eax
+mov     eax,ecx
+mov     dword ptr [rbp+24h],eax
+```
+
+`NOTE : rbp+24h value will be `cmp`  to our 2nd input `rbp+84h` ,and needs to be equal otherwise it jumps to an explode_bomb ` 
+we know that the increment is  done on `RAX` , and those increments the `rbp+24h` by the value in `00007ff7fb95f1d0+X*4` for each loop
+
+Therefore, if our input = `5` ( C + 3 + 7 + B + D + 9 + 4 + 8 + 0 + A + 1 + 2 + E + 6 + F )
+by the end of the loop, `rbp+24h` will have a value of `0x73`  because of this instruction
+``add     ecx,eax``
+
+This means that our second input needs to be the decimal equivalent of hex 73, so it is decimal 115
+
+
 
 After analyzing all possible paths, the only valid input is:
 
@@ -253,7 +312,7 @@ Sorted descending:
 
 ## Final Result
 
-🎉 **Bomb Successfully Defused (Including Secret Phase)**
+🎉 **Bomb Successfully Defused**
 
 ---
 
