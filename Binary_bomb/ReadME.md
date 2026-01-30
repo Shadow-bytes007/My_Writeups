@@ -20,7 +20,7 @@ The objective of the lab is  **to prevent the bomb program from exploding**, usi
 
 ## Phase 1
 
-The challenge was analyzed using **WinDBG** in normal mode, allowing access to symbol information via `bomb.pdb`.
+The challenge was analyzed using **WinDBG** , allowing access to symbol information via `bomb.pdb`.
 
 A breakpoint was set at `main`, and execution was stepped until the first user input prompt appeared. An arbitrary string (`test`) was entered to observe execution flow.
 
@@ -418,3 +418,4 @@ Node values:
 
 This lab is an excellent exercise in **assembly analysis**, **debugger proficiency**, and **reverse engineering**
 ```text
+NOTE: Although it is technically possible to modify memory using a debugger and bypass the checks, the intended and best-practice approach is to understand the execution flow and provide inputs that correctly reorder the existing memory values without modifying them.
