@@ -275,12 +275,112 @@ After analyzing all possible paths, the only valid input is:
 ## Phase 6
 
 This phase requires **six unique integers**.
+Firstly, there is a call to `read_six_numbers` , so it requires an  input six digits
 
+```
+cmp     dword ptr [rbp+rax*4+48h],1
+jl      bomb!phase_6+0xa1 (00007ff6`47f62651)
+
+```
+this means the value must be in range `1–6`
+<img width="831" height="54" alt="phase6 1" src="https://github.com/user-attachments/assets/dd35d143-c8c3-4ac0-80dc-047b763c4232" />
+the 1st input should be less than 6 , to skip `explode bomb`
+
+Next `eax` is incremented then `mov` to `[rbp+0E4h]` and it compares to 6 , jge leads to `explode bomb`
+
+```
+movsxd  rax,dword ptr [rbp+0C4h]
+movsxd  rcx,dword ptr [rbp+0E4h]
+mov     ecx,dword ptr [rbp+rcx*4+48h]
+cmp     dword ptr [rbp+rax*4+48h],ecx
+jne     bomb!phase_6+0xea (00007ff7fb95269a)
+```
+this comapres if input 1 == input2 
+If we skip this jump it calls explode_bomb, so our first input and second input can’t be equal.
+
+we enter a loop which increments `rbp+0E4h` by `0x`1 each loop. It needs to loop 5 times in order for rbp+0E4h’s value to be equal to `0x6`, so we can take the `JGE` instruction to `00007ff7fb95269c` and break out of the loop. This will require our first input to not be equal to any other input. This is because in the CMP/JNE instructions it uses `rbp+0E4h` which is incremented by 0x1 each time to access our inputs.
+
+the next jump takes to the start which increments rbp+0C4h and this loop 6 times in order for the JGE instruction to jump to `00007ff7fb95269e` and break us out of the loop.
+
+Next, we come to some more CMP instructions:
+```
+cmp     dword ptr [rbp+0C4h],6
+jge     bomb!phase_6+0x166 (00007ff7fb952716)
+```
+
+[rbp+0C4h] (it is reset reset to 0x0) >= to 6  
+
+
+rbp+8 (00007ff7fb95f050) is moved into RAX, and RAX is moved into rbp+28h.
+
+```
+movsxd  rax,dword ptr [rbp+0C4h]
+mov     eax,dword ptr [rbp+rax*4+48h]
+cmp     dword ptr [rbp+0E4h],eax
+jge     bomb!phase_6+0x154 (00007ff7fb952704)
+```
+
+[rbp+0E4h] (reset to 0x1) >= first input
+
+If it is not >= 0x1, we move `rbp+28h (00007ff7fb95f050`) into RAX, increment it by eight bytes to access `00007ff7fb95f040’s` memory, and store is back in `rbp+28h`.
+
+It will then enter a loop which will increment rbp+0E4h (0x1) by 0x1 UNTIL rbp+0E4h is >= to our first input.
+
+ONCE rbp+0E4h is >= to our first input, it jumps to a series of instructions which saves the current `rbp+28h` value into memory at `rbp+rax*8+78h`:
+```
+movsxd  rax,dword ptr [rbp+0C4h]
+rcx,qword ptr [rbp+28h]
+mov     qword ptr [rbp+rax*8+78h],rcx
+```
+
+It is important to note that during the **first loop iteration**, if `rbp+0E4h` (initialized to `0x1`) is **greater than or equal to** our first input (for example, `0x1`), the program immediately saves the address `00007ff7fb95f050` to the memory location `rbp + rax*8 + 78h`.
+
+If, however, the input is `6`, execution cycles through memory and ultimately saves the **lowest address**, `00007ff7fb95f000`, to `rbp + rax*8 + 78h`.
+
+Based on this behavior, we can assume the following input-to-address mapping:
+
+- `00007ff7fb95f050` corresponds to input `1`
+- `00007ff7fb95f040` corresponds to input `2`
+- `00007ff7fb95f030` corresponds to input `3`
+- `00007ff7fb95f020` corresponds to input `4`
+- `00007ff7fb95f010` corresponds to input `5`
+- `00007ff7fb95f000` corresponds to input `6`
+
+```
 Constraints:
 - Values must be in the range `1–6`
 - No duplicates are allowed
 - Inputs reorder a linked list
 - Resulting node values must be in **descending order**
+```
+
+ we need rbp+0C4h (reset to 0x1) to be >= to 5 so we can jump to 00007ff7fb9527d1 and exit:
+```
+cmp     dword ptr [rbp+0C4h],5
+jge     bomb!phase_6+0x221 (00007ff7`fb9527d1)
+```
+
+However, in order to do so, we need to take the jump to 00007ff7fb9527c3 on EVERY loop, so rbp+0C4h can reach 5:
+```
+cmp     dword ptr [rcx],eax
+jge     bomb!phase_6+0x213 (00007ff7fb9527c3)
+Is “[rcx] >= [eax]”? In addition, if we don’t take this jump, it will call explode_bomb.
+```
+
+If we look at the instructions just before the jump to `00007ff7fb9527c3`, we can see that the values used in the `cmp` instruction come from the addresses stored at `rbp+78h` and higher. The value loaded into `RCX` for the comparison corresponds to the address saved at `rbp+78h`, while the value loaded into `EAX` corresponds to the address saved at `rbp+78h + 8`. On each iteration of the loop, both of these addresses move forward by **eight bytes**.
+
+As mentioned earlier, we control which addresses are saved at `rbp+78h` and above. Because of this, to ensure the conditional jump is always taken, the value at the address stored in `rbp+78h` must be **greater than or equal to** the value at the address stored in `rbp+78h + 8`. Simply put, each input we choose must map to a value that is **greater than or equal to the value produced by the next input**.
+
+For example, when examining the values stored at each address, we can see that `0x3A7` is the **largest value**.
+
+
+
+
+0x3a7 corresponds to address 7ff7fb95f010, and as previously mentioned, 7ff7fb95f010 corresponds to an input of 5. So, the next highest value is 0x393 at address 7ff7fb95f020, which corresponds to an input of 4, and so on:
+
+
+<img width="294" height="225" alt="image" src="https://github.com/user-attachments/assets/a7ccb5c4-2254-4e5e-beb5-164717fd45e0" />
+
 
 Node values:
 
@@ -293,11 +393,6 @@ Node values:
 | 6 | 0x200 |
 | 2 | 0x1C2 |
 
-Sorted descending:
-
-
-
-5 4 3 1 6 2
 
 
 **Phase 6 Input**
